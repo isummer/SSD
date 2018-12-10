@@ -1,97 +1,88 @@
-import glob
 import os
+import sys
+import numpy as np
+import cv2
+from matplotlib import pyplot as plt
 
 import torch
-from PIL import Image
-from tqdm import tqdm
-from ssd.config import cfg
-from ssd.data.datasets import COCODataset, VOCDataset
-from ssd.modeling.predictor import Predictor
-from ssd.modeling.vgg_ssd import build_ssd_model
-import argparse
-import numpy as np
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
+from torch.autograd import Variable
 
-from ssd.utils.viz import draw_bounding_boxes
+from libs.datasets import VOCDetection, VOCAnnotationTransform
+from libs.datasets import VOC_CLASSES as labelmap
+from libs.models import SSD
+from libs.layers.functions import PriorBox
+from libs.utils import Config
+from libs.utils import Timer
 
+cfgs = Config.fromfile('cfgs/ssd300_voc.json')
+# print(cfgs)
 
-def run_demo(cfg, weights_file, iou_threshold, score_threshold, images_dir, output_dir, dataset_type):
-    if dataset_type == "voc":
-        class_names = VOCDataset.class_names
-    elif dataset_type == 'coco':
-        class_names = COCODataset.class_names
-    else:
-        raise NotImplementedError('Not implemented now.')
+colors = plt.cm.hsv(np.linspace(0, 1, cfgs.model.num_classes))
+colors = (255.0 * colors[:, :3]).tolist()
 
-    device = torch.device(cfg.MODEL.DEVICE)
-    model = build_ssd_model(cfg, is_test=True)
-    model.load(weights_file)
-    print('Loaded weights from {}.'.format(weights_file))
-    model = model.to(device)
-    predictor = Predictor(cfg=cfg,
-                          model=model,
-                          iou_threshold=iou_threshold,
-                          score_threshold=score_threshold,
-                          device=device)
-    cpu_device = torch.device("cpu")
+# here we specify year (07 or 12) and dataset ('test', 'val', 'train') 
+testset = VOCDetection('/home/pengwu/data/VOCdevkit/',
+                       [('2007', 'trainval')], None, 
+                       VOCAnnotationTransform())
 
-    image_paths = glob.glob(os.path.join(images_dir, '*.jpg'))
+priorbox = PriorBox(cfgs.coder)
+priors = priorbox.forward().cuda()
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+net = SSD(cfgs.model)
+if torch.cuda.is_available():
+    net = net.to('cuda')
 
-    for image_path in tqdm(image_paths):
-        image = Image.open(image_path).convert("RGB")
-        image = np.array(image)
-        output = predictor.predict(image)
-        boxes, labels, scores = [o.to(cpu_device).numpy() for o in output]
-        drawn_image = draw_bounding_boxes(image, boxes, labels, scores, class_names).astype(np.uint8)
-        image_name = os.path.basename(image_path)
-        Image.fromarray(drawn_image).save(os.path.join(output_dir, image_name))
+net.load_state_dict(torch.load('./model/ssd300_voc_mAP_77.43.pth'))
+"""
+from collections import OrderedDict
+pretrained_weights = torch.load('./weights/ssd300_voc_epoch_20.pth')
+new_state_dict = OrderedDict()
+for k, v in pretrained_weights.items():
+    name = k[7:] # remove 'module'
+    new_state_dict[name] = v
+net.load_state_dict(new_state_dict)
+net.eval()
+"""
+timer = Timer()
 
+for img_id in range(10, len(testset), 10):
+    cv2_img = testset.pull_image(img_id)
+    # print(im_ori.shape)
+    im = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
+    im_h, im_w = im.shape[:2]
+    im = cv2.resize(im, (300, 300))
+    im_to_show = cv2_img
+    im = im.astype(np.float32)
+    im -= (104.0, 117.0, 123.0)
+    im = im[:, :, ::-1].copy()
+    im_tensor = torch.from_numpy(im).permute(2, 0, 1)
 
-def main():
-    parser = argparse.ArgumentParser(description="SSD Evaluation on VOC Dataset.")
-    parser.add_argument(
-        "--config-file",
-        default="",
-        metavar="FILE",
-        help="path to config file",
-        type=str,
-    )
-    parser.add_argument("--weights", type=str, help="Trained weights.")
-    parser.add_argument("--iou_threshold", type=float, default=0.5)
-    parser.add_argument("--score_threshold", type=float, default=0.5)
-    parser.add_argument("--images_dir", default='demo', type=str, help='Specify a image dir to do prediction.')
-    parser.add_argument("--output_dir", default='demo/result', type=str, help='Specify a image dir to predict.')
-    parser.add_argument("--dataset_type", default="voc", type=str, help='Specify dataset type. Currently support voc and coco.')
+    if torch.cuda.is_available():
+        im_tensor = im_tensor.to('cuda')
 
-    parser.add_argument(
-        "opts",
-        help="Modify config options using the command-line",
-        default=None,
-        nargs=argparse.REMAINDER,
-    )
-    args = parser.parse_args()
-    print(args)
+    torch.cuda.synchronize()
+    timer.tic()
 
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
+    with torch.no_grad():
+        loc_preds, cls_preds = net(im_tensor.unsqueeze(0))
 
-    print("Loaded configuration file {}".format(args.config_file))
-    with open(args.config_file, "r") as cf:
-        config_str = "\n" + cf.read()
-        print(config_str)
-    print("Running with config:\n{}".format(cfg))
+    torch.cuda.synchronize()
+    print("cost time:", timer.toc())
+    predictions = (loc_preds, cls_preds, priors)
+    boxes, labels, scores = net.nms_decode(predictions, 0.6, 0.45)
 
-    run_demo(cfg=cfg,
-             weights_file=args.weights,
-             iou_threshold=args.iou_threshold,
-             score_threshold=args.score_threshold,
-             images_dir=args.images_dir,
-             output_dir=args.output_dir,
-             dataset_type=args.dataset_type)
+    for bbox, label, score in zip(boxes, labels, scores):
+        bbox[0::2] *= im_w
+        bbox[1::2] *= im_h
+        x1, y1, x2, y2 = [int(p) for p in bbox]
+        label_name = labelmap[label]
+        cv2.rectangle(im_to_show, (x1,y1), (x2,y2), colors[label], 2)
+        cv2.putText(im_to_show, label_name, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.35, colors[label], 1)
 
-
-if __name__ == '__main__':
-    main()
+    im_scale = 0.25
+    im_to_show = cv2.resize(im_to_show, None, None, fx=im_scale, fy=im_scale)
+    cv2.imshow("result", im_to_show)
+    cv2.waitKey(1)
