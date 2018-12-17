@@ -8,7 +8,8 @@ Updated by: Ellis Brown, Max deGroot
 import os.path as osp
 import numpy as np
 import cv2
-from PIL import Image
+cv2.setNumThreads(0) # pytorch issue 1355: possible deadlock in dataloader
+# from PIL import Image
 import xml.etree.ElementTree as ET
 
 import torch

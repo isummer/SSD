@@ -22,7 +22,7 @@
     },
     "train": {
         "max_epoches": 250,
-        "batch_size": 8,
+        "batch_size": 32,
         "num_workers": 8,
         "checkpoints_epochs": 100,
         "test_epochs": 100,

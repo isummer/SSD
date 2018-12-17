@@ -337,7 +337,7 @@ def test_net(save_folder, net, priors, cuda, dataset, transform, top_k,
 
     # timers
     _t = {'im_detect': Timer(), 'misc': Timer()}
-    output_dir = get_output_dir('ssd300_120000', set_type)
+    output_dir = get_output_dir('ssd300_voc', set_type)
     det_file = os.path.join(output_dir, 'detections.pkl')
      
     for i in range(num_images):
@@ -352,7 +352,7 @@ def test_net(save_folder, net, priors, cuda, dataset, transform, top_k,
         boxes, labels, scores = net.nms_decode(predictions, 0.01, 0.45)
         detect_time = _t['im_detect'].toc(average=False)
         # skip c = 0, because it's the background class
-        for c in range(1, cfgs.data['num_classes']):
+        for c in range(1, cfgs.model['num_classes']):
             mask = np.where(labels == c)
             if len(mask[0]) == 0:
                 continue
@@ -415,7 +415,7 @@ if __name__ == '__main__':
     net = SSD(cfgs.model).cuda()
     # net.load_state_dict(torch.load(args.trained_model))
     from collections import OrderedDict
-    pretrained_weights = torch.load('./weights/ssd300_voc_epoch_30.pth')
+    pretrained_weights = torch.load('./weights/ssd300_voc_epoch_210.pth')
     new_state_dict = OrderedDict()
     for k, v in pretrained_weights.items():
         name = k[7:] # remove 'module'

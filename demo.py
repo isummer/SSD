@@ -35,17 +35,17 @@ net = SSD(cfgs.model)
 if torch.cuda.is_available():
     net = net.to('cuda')
 
-net.load_state_dict(torch.load('./model/ssd300_voc_mAP_77.43.pth'))
-"""
+# net.load_state_dict(torch.load('./model/ssd300_voc_mAP_77.43.pth'))
+
 from collections import OrderedDict
-pretrained_weights = torch.load('./weights/ssd300_voc_epoch_20.pth')
+pretrained_weights = torch.load('./weights/ssd300_voc_epoch_210.pth')
 new_state_dict = OrderedDict()
 for k, v in pretrained_weights.items():
     name = k[7:] # remove 'module'
     new_state_dict[name] = v
 net.load_state_dict(new_state_dict)
 net.eval()
-"""
+
 timer = Timer()
 
 for img_id in range(10, len(testset), 10):

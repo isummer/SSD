@@ -68,7 +68,7 @@ print('epoch size:', epoch_size)
 scheduler = WarmupMultiStepLR(optimizer=optimizer,
                               milestones=milestones,
                               gamma=cfgs.train.optimizer.gamma,
-                              warmup_factor=cfgs.train.warmup_factor,
+                              # warmup_factor=cfgs.train.warmup_factor,
                               warmup_epochs=cfgs.train.warmup_epochs,
                               epoch_size=epoch_size)
 
@@ -127,26 +127,30 @@ def train():
             running_loss += loss.item()
 
             if iteration % 5 == 0:
-                print('[%3d / %3d] | loss: %.4f | loc loss: %.4f | cls loss: %.4f' % (iteration, epoch_size, loss.item(), loss_l.item(), loss_c.item()), end='\r')
+                lr = optimizer.param_groups[0]['lr']
+                print('[%3d / %3d] | loss: %.4f | loc loss: %.4f | cls loss: %.4f | lr: %.6f' % (iteration, epoch_size, loss.item(), loss_l.item(), loss_c.item(), lr), end='\r')
         lr = optimizer.param_groups[0]['lr']
         print('\nTotal time: %.3fs | loss: %.4f | lr: %.6f' % (_t.total_time, running_loss/epoch_size, lr))
 
         if epoch != 0 and epoch % 10 == 0:
-            print('Saving state, epoch:', epoch)
-            torch.save(net.state_dict(), 'weights/ssd300_voc_epoch_' +
-                       repr(epoch) + '.pth')
+            # print('Saving state, epoch:', epoch)
+            # torch.save(net.state_dict(), 'weights/ssd300_voc_epoch_' +
+            #            repr(epoch) + '.pth')
+            print('Save checkpoint, epoch:', epoch)
+            save_checkpoint(epoch, net, optimizer)
     torch.save(net.state_dict(),
                os.path.join(cfgs.save_folder, cfgs.data.dataset + '.pth'))
 
 
-def save_checkpoint(epoch, net_state_dict, optimizer_state_dict, best_score, checkpoint_path, model_path):
+def save_checkpoint(epoch, net, optimizer):
+    checkpoint_path = 'checkpoints/ssd300_voc_epoch_' + repr(epoch) + '.ckpt'
+    model_path = 'weights/ssd300_voc_epoch_' + repr(epoch) + '.pth'
     torch.save({
         'epoch': epoch,
-        'model': net_state_dict,
-        'optimizer': optimizer_state_dict,
-        'best_score': best_score
+        'model': net.state_dict(),
+        'optimizer': optimizer.state_dict(),
     }, checkpoint_path)
-    torch.save(net_state_dict, model_path)
+    torch.save(net.state_dict(), model_path)
 
 
 if __name__ == '__main__':
