@@ -143,7 +143,7 @@ def train():
 
 
 def save_checkpoint(epoch, net, optimizer):
-    checkpoint_path = 'checkpoints/ssd300_voc_epoch_' + repr(epoch) + '.ckpt'
+    checkpoint_path = 'checkpoints/ssd300_voc.ckpt'
     model_path = 'weights/ssd300_voc_epoch_' + repr(epoch) + '.pth'
     torch.save({
         'epoch': epoch,
