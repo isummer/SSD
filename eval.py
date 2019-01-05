@@ -327,7 +327,7 @@ cachedir: Directory for caching the annotations
 
 
 def test_net(save_folder, net, priors, cuda, dataset, transform, top_k,
-             im_size=300, thresh=0.05):
+             im_size=300, thresh=0.01):
     num_images = len(dataset)
     # all detections are collected into:
     #    all_boxes[cls][image] = N x 5 array of detections in
@@ -374,7 +374,7 @@ def test_net(save_folder, net, priors, cuda, dataset, transform, top_k,
 
         print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
                                                     num_images, detect_time))
-
+        """
         im_to_show = im.data.cpu().numpy().transpose(1, 2, 0)
         im_to_show = cv2.cvtColor(im_to_show, cv2.COLOR_RGB2BGR)
         im_to_show += np.array([104, 117, 123])
@@ -391,6 +391,7 @@ def test_net(save_folder, net, priors, cuda, dataset, transform, top_k,
         im_to_show = cv2.resize(im_to_show, None, None, fx=im_scale, fy=im_scale)
         cv2.imshow("result", im_to_show)
         cv2.waitKey(1)
+        """
 
     with open(det_file, 'wb') as f:
         pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
@@ -409,13 +410,13 @@ def evaluate_detections(box_list, output_dir, dataset):
 
 if __name__ == '__main__':
     # load net
-    num_classes = len(labelmap) + 1                      # +1 for background
+    num_classes = len(labelmap)
     priorbox = PriorBox(cfgs.coder)
     priors = priorbox.forward().cuda()
     net = SSD(cfgs.model).cuda()
     # net.load_state_dict(torch.load(args.trained_model))
     from collections import OrderedDict
-    pretrained_weights = torch.load('./weights/ssd300_voc_epoch_210.pth')
+    pretrained_weights = torch.load('./weights/ssd300_voc_mAP_78.83.pth')
     new_state_dict = OrderedDict()
     for k, v in pretrained_weights.items():
         name = k[7:] # remove 'module'

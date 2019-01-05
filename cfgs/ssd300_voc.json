@@ -28,13 +28,13 @@
         "test_epochs": 100,
         "optimizer": {
             "optimizer": "sgd",
-            "learning_rate": 1e-3,
+            "learning_rate": 2e-3,
             "momentum": 0.9,
             "weight_decay": 5e-4,
             "gamma": 0.1
         },
         "warmup_factor": 0.25,
-        "warmup_epochs": 6,
+        "warmup_epochs": 1,
         "lr_steps": [150, 200],
         "aug_params": {
             "bgr_mean": [104, 117, 123],

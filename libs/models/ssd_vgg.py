@@ -60,7 +60,8 @@ class SSD(nn.Module):
             if m in self.base.modules():
                 continue
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_uniform_(m.weight.data)
+                # nn.init.kaiming_uniform_(m.weight.data)
+                nn.init.xavier_uniform_(m.weight.data)
                 if m.bias is not None:
                     m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
