@@ -12,12 +12,12 @@ from torch.autograd import Variable
 
 from libs.datasets import VOCDetection, VOCAnnotationTransform
 from libs.datasets import VOC_CLASSES as labelmap
-from libs.models import SSD
+from libs.models import RefineDet
 from libs.layers.functions import PriorBox
 from libs.utils import Config
 from libs.utils import Timer
 
-cfgs = Config.fromfile('cfgs/ssd300_voc.json')
+cfgs = Config.fromfile('cfgs/refine320_voc.json')
 # print(cfgs)
 
 colors = plt.cm.hsv(np.linspace(0, 1, cfgs.model.num_classes))
@@ -31,14 +31,13 @@ testset = VOCDetection('/home/pengwu/data/VOCdevkit/',
 priorbox = PriorBox(cfgs.coder)
 priors = priorbox.forward().cuda()
 
-net = SSD(cfgs.model)
+net = RefineDet(cfgs.model)
 if torch.cuda.is_available():
     net = net.to('cuda')
 
-# net.load_state_dict(torch.load('./model/ssd300_voc_mAP_77.43.pth'))
-
+# net.load_state_dict(torch.load('./model/refine320_voc_mAP_78.83.pth'))
 from collections import OrderedDict
-pretrained_weights = torch.load('./weights/ssd300_voc_mAP_78.83.pth')
+pretrained_weights = torch.load('./weights/refine320_voc_mAP_78.83.pth')
 new_state_dict = OrderedDict()
 for k, v in pretrained_weights.items():
     name = k[7:] # remove 'module'
@@ -67,11 +66,11 @@ for img_id in range(10, len(testset), 10):
     timer.tic()
 
     with torch.no_grad():
-        loc_preds, cls_preds = net(im_tensor.unsqueeze(0))
+        arm_loc_preds, arm_cls_preds, odm_loc_preds, odm_cls_preds = net(im_tensor.unsqueeze(0))
 
     torch.cuda.synchronize()
     print("cost time:", timer.toc())
-    predictions = (loc_preds, cls_preds, priors)
+    predictions = (odm_loc_preds, odm_cls_preds, arm_loc_preds, arm_cls_preds, priors)
     boxes, labels, scores = net.nms_decode(predictions, 0.6, 0.45)
 
     for bbox, label, score in zip(boxes, labels, scores):

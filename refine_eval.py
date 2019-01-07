@@ -20,7 +20,7 @@ from torchvision import transforms
 
 from libs.datasets import VOCDetection, BaseTransform
 from libs.datasets import VOC_CLASSES as labelmap
-from libs.models import SSD
+from libs.models import RefineDet
 from libs.layers.functions import PriorBox
 from libs.utils import Config
 from libs.utils import Timer
@@ -342,13 +342,13 @@ def test_net(save_folder, net, priors, cuda, dataset, transform, top_k,
      
     for i in range(num_images):
         im, gt, h, w = dataset.pull_item(i)
-        x = Variable(im.unsqueeze(0))
         if args.cuda:
-            x = x.cuda()
+            im = im.cuda()
         _t['im_detect'].tic()
         with torch.no_grad():
-            loc_preds, cls_preds = net(x)
-        predictions = (loc_preds, cls_preds, priors)
+            arm_loc_preds, arm_cls_preds, odm_loc_preds, odm_cls_preds = net(im.unsqueeze(0))
+        predictions = (odm_loc_preds, odm_cls_preds, arm_loc_preds, arm_cls_preds, priors)
+
         boxes, labels, scores = net.nms_decode(predictions, thresh, 0.45)
         detect_time = _t['im_detect'].toc(average=False)
         # skip c = 0, because it's the background class
@@ -413,10 +413,10 @@ if __name__ == '__main__':
     num_classes = len(labelmap)
     priorbox = PriorBox(cfgs.coder)
     priors = priorbox.forward().cuda()
-    net = SSD(cfgs.model).cuda()
+    net = RefineDet(cfgs.model).cuda()
     # net.load_state_dict(torch.load(args.trained_model))
     from collections import OrderedDict
-    pretrained_weights = torch.load('./weights/ssd300_voc_mAP_78.83.pth')
+    pretrained_weights = torch.load('./weights/refine320_voc_mAP_78.83.pth')
     new_state_dict = OrderedDict()
     for k, v in pretrained_weights.items():
         name = k[7:] # remove 'module'

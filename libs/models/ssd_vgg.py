@@ -109,6 +109,7 @@ class SSD(nn.Module):
             scores_c = scores_c[mask]
 
             keep = T.nms(boxes_c, scores_c, nms_thresh)
+            # keep = keep[:50]
             boxes_c = boxes_c[keep]
             scores_c = scores_c[keep]
 
