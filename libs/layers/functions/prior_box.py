@@ -20,7 +20,7 @@ class PriorBox(object):
 
         self.steps_w = [s / self.input_size[0] for s in self.output_stride]
         self.steps_h = [s / self.input_size[1] for s in self.output_stride]
-        self.fm_sizes = [[int(np.ceil(1.0 / step_w)), int(np.ceil(1.0 / step_h))]
+        self.fm_sizes = [[int(np.ceil(1.0 / step_h)), int(np.ceil(1.0 / step_w))]
                              for step_w, step_h in zip(self.steps_w, self.steps_h)]
 
     def forward(self):

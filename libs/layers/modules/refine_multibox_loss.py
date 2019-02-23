@@ -59,6 +59,7 @@ class RefineMultiBoxLoss(nn.Module):
         # match priors (default boxes) and ground truth boxes
         loc_t = torch.Tensor(num, num_priors, 4)
         conf_t = torch.LongTensor(num, num_priors)
+
         for idx in range(num):
             truths = targets[idx][:,:-1].detach()
             labels = targets[idx][:,-1].detach()
@@ -75,9 +76,8 @@ class RefineMultiBoxLoss(nn.Module):
             conf_t = conf_t.cuda()
 
         if arm_data and filter_object:
-            P = F.softmax(arm_conf, 2)
-            arm_conf_tmp = P[:,:,1]
-            object_score_index = arm_conf_tmp <= self.object_score
+            arm_conf_data = arm_conf[:,:,1]
+            object_score_index = arm_conf_data <= self.object_score
             pos = conf_t > 0
             pos[object_score_index.detach()] = 0
         else:
@@ -97,7 +97,6 @@ class RefineMultiBoxLoss(nn.Module):
         loss_c = loss_c.view(num, -1)
 
         # Hard Negative Mining
-        pos_loss_c = loss_c[pos]
         loss_c[pos] = 0 # filter out pos boxes for now
         #loss_c = loss_c.view(num, -1)
         _,loss_idx = loss_c.sort(1, descending=True)
@@ -105,17 +104,16 @@ class RefineMultiBoxLoss(nn.Module):
         num_pos = pos.long().sum(1,keepdim=True)
         num_neg = torch.clamp(self.negpos_ratio*num_pos, max=pos.size(1)-1)
         neg = idx_rank < num_neg.expand_as(idx_rank)
-        neg_loss_c = loss_c[neg]
+
         # Confidence Loss Including Positive and Negative Examples
-        # pos_idx = pos.unsqueeze(2).expand_as(conf_data)
-        # neg_idx = neg.unsqueeze(2).expand_as(conf_data)
-        #conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
-        #targets_weighted = conf_t[(pos+neg).gt(0)]
-        #loss_c = F.cross_entropy(conf_p, targets_weighted, size_average=False)
+        pos_idx = pos.unsqueeze(2).expand_as(conf_data)
+        neg_idx = neg.unsqueeze(2).expand_as(conf_data)
+        conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
+        targets_weighted = conf_t[(pos+neg).gt(0)]
+        loss_c = F.cross_entropy(conf_p, targets_weighted, size_average=False)
 
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
-        loss_c = pos_loss_c.sum() + neg_loss_c.sum()
         N = num_pos.data.sum().float()
-        loss_l = loss_l/N
-        loss_c = loss_c/N
+        loss_l /= N
+        loss_c /= N
         return loss_l, loss_c
